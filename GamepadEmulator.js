@@ -882,22 +882,10 @@ class GamepadEmulator {
 		do {
 			const metadata = this.emulatedGamepadsMetadata[index];
 			const isFree = this.realGpadToPatchedIndexMap[index] == null && this.patchedGpadToRealIndexMap[index] == null;
-			if ((metadata && metadata.overlayMode && this.patchedGpadToRealIndexMap[index] == null) || (!metadata && isFree)) break;
+			if ((metadata && metadata.overlayMode) || (!metadata && isFree)) break;
 			index++;
 		} while (index < maxLen);
 		return index;
-	}
-
-	// From 0, not the real index: the game reads only pad 0, where the touch overlay sits. Lazy, so pads
-	// connected before the emulator existed get mapped too.
-	patchedIndexFor(realIndex) {
-		let patchedIndex = this.realGpadToPatchedIndexMap[realIndex];
-		if (patchedIndex == null) {
-			patchedIndex = this.nextEmptyRealGpadIndex(0);
-			this.realGpadToPatchedIndexMap[realIndex] = patchedIndex;
-			this.patchedGpadToRealIndexMap[patchedIndex] = realIndex;
-		}
-		return patchedIndex;
 	}
 
 	monkeyPatchGamepadEvents() {
@@ -941,7 +929,11 @@ class GamepadEmulator {
 				event.preventDefault();
 
 				const cloned = this.cloneGamepad(event.gamepad);
-				const patchedIndex = this.patchedIndexFor(cloned.index);
+				const realIndex = cloned.index;
+				const patchedIndex = this.nextEmptyRealGpadIndex(realIndex);
+
+				this.realGpadToPatchedIndexMap[realIndex] = patchedIndex;
+				this.patchedGpadToRealIndexMap[patchedIndex] = realIndex;
 
 				Object.defineProperty(cloned, "index", {
 					get: () => patchedIndex
@@ -965,7 +957,7 @@ class GamepadEmulator {
 				event.preventDefault();
 
 				const cloned = this.cloneGamepad(event.gamepad);
-				const patchedIndex = this.realGpadToPatchedIndexMap[cloned.index] ?? cloned.index;
+				const patchedIndex = this.realGpadToPatchedIndexMap[cloned.index] || cloned.index;
 
 				Object.defineProperty(cloned, "index", {
 					get: () => patchedIndex
@@ -1023,7 +1015,7 @@ class GamepadEmulator {
 					if (!gamepad) continue;
 
 					let cloned = self.cloneGamepad(gamepad);
-					let patchedIndex = self.patchedIndexFor(cloned.index);
+					let patchedIndex = self.realGpadToPatchedIndexMap[cloned.index] || cloned.index;
 
 					Object.defineProperty(cloned, "index", {
 						get: () => patchedIndex
